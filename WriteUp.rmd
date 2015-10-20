@@ -1,0 +1,104 @@
+---
+title: "Qualitative Activity Prediction of Weight Lifting Exercises"
+author: "SiddharthIITG"
+date: "20 October 2015"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+#Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+#Executive Summary
+
+- The estimated accuracy of the model used is 99.37%
+- The out of sample error is 0.62%
+
+#Loading Packages
+
+```{r, message = FALSE}
+library("caTools")
+library("randomForest")
+library("rpart")
+library("rpart.plot")
+library("caret")
+```
+
+#Reading the data.
+
+Here I have read the data and extracted only those rows which are not all NA's or are not empty.
+
+```{r}
+train = read.csv("pml-training.csv")
+test = read.csv("pml-testing.csv")
+train = train[, colSums(is.na(train)) < 5] # NA columns 
+train = train[, colSums(train != "") > 1000] # empty columns
+test = test[, colSums(is.na(test)) < 5] # NA columns
+train = train[, 8:60] #removing time and name etc.
+test = test[,8:60] #removing time and name etc
+```
+
+train and test both now contain 53 variables each. 
+
+##Creating a validation dataset by splitting the training set in 0.7 ratio.
+
+```{r}
+split = sample.split(train$classe, SplitRatio = 0.7)
+trainData = subset(train, split==TRUE)
+testData = subset(train, split==FALSE)
+```
+
+##Finding variables with near zero variance 
+
+```{r}
+nzv <- nearZeroVar(trainData, saveMetrics=TRUE)
+nzv
+```
+
+We find that no variable has a variance close to zero and hence none of them is removed.
+
+#Model Selection
+
+Here I have used Random Forest algorithm algorithm because it automatically selects important variables and is robust to correlated covariates & outliers. We will use 5 fold cross validation when applying this algorithm.  
+
+```{r}
+controlRf <- trainControl(method="cv", 5)
+rfModel <- train(classe ~ ., data=trainData, method="rf", trControl=controlRf, ntree=200)
+rfModel
+```
+Now we estimate our performance on the validation data set. 
+```{r}
+predRf <- predict(rfModel, testData)
+confusionMatrix(testData$classe, predRf)
+```
+
+```{r}
+accuracy <- postResample(predRf, testData$classe)
+accuracy
+```
+
+```{r}
+OutSampleError <- 1 - as.numeric(confusionMatrix(testData$classe, predRf)$overall[1])
+OutSampleError
+```
+
+#Prediction for the test data set
+
+```{r}
+predTest <- predict(rfModel,test[, -length(names(test))])
+predTest
+```
+
+#Appendix: Figures
+
+Tree Visualization
+
+```{r}
+treeModel <- rpart(classe ~ ., data=trainData, method="class")
+prp(treeModel) 
+```
